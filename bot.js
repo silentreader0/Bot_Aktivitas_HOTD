@@ -1,18 +1,14 @@
 const TelegramBot = require("node-telegram-bot-api");
 const { GoogleSpreadsheet } = require("google-spreadsheet");
 const { JWT } = require("google-auth-library");
-const { google } = require("googleapis");
-const axios = require("axios");
-const stream = require("stream");
 
 // ── Config ──────────────────────────────────────────────────────────────────
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const SHEET_ID = process.env.GOOGLE_SHEET_ID;
-const DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
 const SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
 const PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n");
 
-if (!BOT_TOKEN || !SHEET_ID || !DRIVE_FOLDER_ID || !SERVICE_ACCOUNT_EMAIL || !PRIVATE_KEY) {
+if (!BOT_TOKEN || !SHEET_ID || !SERVICE_ACCOUNT_EMAIL || !PRIVATE_KEY) {
   console.error("❌ Environment variables belum lengkap! Cek README.md");
   process.exit(1);
 }
@@ -24,15 +20,7 @@ const serviceAccountAuth = new JWT({
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
 });
 
-// ── Google Auth untuk Drive ───────────────────────────────────────────────────
-const driveAuth = new google.auth.GoogleAuth({
-  credentials: {
-    client_email: SERVICE_ACCOUNT_EMAIL,
-    private_key: PRIVATE_KEY,
-  },
-  scopes: ["https://www.googleapis.com/auth/drive"],
-});
-const drive = google.drive({ version: "v3", auth: driveAuth });
+
 
 async function uploadToDrive(fileBuffer, fileName, mimeType) {
   const bufferStream = new stream.PassThrough();
@@ -67,9 +55,9 @@ async function getSheet(name) {
   if (!sheet) {
     sheet = await doc.addSheet({ title: name });
     if (name === "TodoList") {
-      await sheet.setHeaderRow(["ID", "Task", "Status", "Tanggal Dibuat"]);
+      await sheet.setHeaderRow(["ID", "Task", "Status", "Tanggal Dibuat", "Tanggal Selesai"]);
     } else if (name === "Pengeluaran") {
-      await sheet.setHeaderRow(["ID", "Tanggal", "Keterangan", "Jumlah", "Kategori", "Bukti"]);
+      await sheet.setHeaderRow(["ID", "Tanggal", "Keterangan", "Jumlah"]);
     }
   }
   return sheet;
@@ -227,124 +215,6 @@ bot.on("callback_query", async (query) => {
     bot.sendMessage(chatId, "📝 Ketik *keterangan pengeluaran* (contoh: Makan siang, Bensin):", {
       parse_mode: "Markdown",
     });
-
-  // ── BAYAR: Pilih Kategori → minta foto bukti ──
-  } else if (data.startsWith("kategori_")) {
-    const kategori = data.replace("kategori_", "");
-    const state = getState(chatId);
-    if (state?.action === "bayar_catat" && state?.step === "kategori") {
-      setState(chatId, { ...state, step: "bukti", kategori });
-      bot.sendMessage(
-        chatId,
-        `🧾 Terakhir, kirim *foto bukti transfer atau kuitansi*-nya ya!\n_(Kirim sebagai foto/gambar)_`,
-        { parse_mode: "Markdown" }
-      );
-    }
-  }
-});
-
-// ── Photo Handler (untuk bukti pengeluaran) ──────────────────────────────────
-bot.on("photo", async (msg) => {
-  const chatId = msg.chat.id;
-  const state = getState(chatId);
-  if (!state || state.action !== "bayar_catat" || state.step !== "bukti") return;
-
-  try {
-    // Ambil foto resolusi tertinggi
-    const photos = msg.photo;
-    const bestPhoto = photos[photos.length - 1];
-    const fileInfo = await bot.getFile(bestPhoto.file_id);
-    const fileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${fileInfo.file_path}`;
-
-    bot.sendMessage(chatId, "⏳ Mengupload bukti ke Google Drive...");
-
-    // Download foto dari Telegram
-    const response = await axios.get(fileUrl, { responseType: "arraybuffer" });
-    const buffer = Buffer.from(response.data);
-    const ext = fileInfo.file_path.split(".").pop() || "jpg";
-    const fileName = `bukti_${state.keterangan.replace(/\s+/g, "_")}_${generateId()}.${ext}`;
-
-    // Upload ke Google Drive
-    const driveLink = await uploadToDrive(buffer, fileName, `image/${ext}`);
-
-    // Simpan ke Google Sheets
-    const sheet = await getSheet("Pengeluaran");
-    await sheet.addRow({
-      ID: generateId(),
-      Tanggal: today(),
-      Keterangan: state.keterangan,
-      Jumlah: state.jumlah,
-      Kategori: state.kategori,
-      Bukti: driveLink,
-    });
-
-    clearState(chatId);
-    bot.sendMessage(
-      chatId,
-      `✅ *Pengeluaran berhasil dicatat!*\n\n` +
-        `📌 *${state.keterangan}*\n` +
-        `💰 ${formatRupiah(state.jumlah)}\n` +
-        `🏷️ ${state.kategori}\n` +
-        `📅 ${today()}\n` +
-        `🧾 [Lihat Bukti](${driveLink})`,
-      { parse_mode: "Markdown", disable_web_page_preview: true }
-    );
-  } catch (e) {
-    clearState(chatId);
-    bot.sendMessage(chatId, "❌ Gagal mengupload bukti: " + e.message);
-  }
-});
-
-// ── Document Handler (jika kirim sebagai file/dokumen) ────────────────────────
-bot.on("document", async (msg) => {
-  const chatId = msg.chat.id;
-  const state = getState(chatId);
-  if (!state || state.action !== "bayar_catat" || state.step !== "bukti") return;
-
-  const doc2 = msg.document;
-  const allowedTypes = ["image/jpeg", "image/png", "image/jpg", "application/pdf"];
-  if (!allowedTypes.includes(doc2.mime_type)) {
-    bot.sendMessage(chatId, "❌ Format tidak didukung. Kirim sebagai foto atau PDF saja ya.");
-    return;
-  }
-
-  try {
-    const fileInfo = await bot.getFile(doc2.file_id);
-    const fileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${fileInfo.file_path}`;
-
-    bot.sendMessage(chatId, "⏳ Mengupload bukti ke Google Drive...");
-
-    const response = await axios.get(fileUrl, { responseType: "arraybuffer" });
-    const buffer = Buffer.from(response.data);
-    const ext = doc2.file_name?.split(".").pop() || "pdf";
-    const fileName = `bukti_${state.keterangan.replace(/\s+/g, "_")}_${generateId()}.${ext}`;
-
-    const driveLink = await uploadToDrive(buffer, fileName, doc2.mime_type);
-
-    const sheet = await getSheet("Pengeluaran");
-    await sheet.addRow({
-      ID: generateId(),
-      Tanggal: today(),
-      Keterangan: state.keterangan,
-      Jumlah: state.jumlah,
-      Kategori: state.kategori,
-      Bukti: driveLink,
-    });
-
-    clearState(chatId);
-    bot.sendMessage(
-      chatId,
-      `✅ *Pengeluaran berhasil dicatat!*\n\n` +
-        `📌 *${state.keterangan}*\n` +
-        `💰 ${formatRupiah(state.jumlah)}\n` +
-        `🏷️ ${state.kategori}\n` +
-        `📅 ${today()}\n` +
-        `🧾 [Lihat Bukti](${driveLink})`,
-      { parse_mode: "Markdown", disable_web_page_preview: true }
-    );
-  } catch (e) {
-    clearState(chatId);
-    bot.sendMessage(chatId, "❌ Gagal mengupload bukti: " + e.message);
   }
 });
 
@@ -353,14 +223,10 @@ bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
 
-  // Tangkap kalau user kirim foto/dokumen tapi di step bukti tapi bukan file
-  const state = getState(chatId);
-  if (state?.action === "bayar_catat" && state?.step === "bukti" && !text && !msg.photo && !msg.document) {
-    bot.sendMessage(chatId, "⚠️ Tolong kirim *foto* atau *file PDF* bukti pembayarannya ya.", { parse_mode: "Markdown" });
-    return;
-  }
 
   if (!text || text.startsWith("/")) return;
+
+  const state = getState(chatId);
   if (!state) return;
 
   // ── Todo: Tambah Task ──
@@ -398,6 +264,7 @@ bot.on("message", async (msg) => {
         return;
       }
       row.set("Status", "Selesai");
+      row.set("Tanggal Selesai", today());
       await row.save();
       clearState(chatId);
       bot.sendMessage(chatId, `✅ Task *${row.get("Task")}* ditandai selesai!`, {
@@ -443,25 +310,27 @@ bot.on("message", async (msg) => {
       bot.sendMessage(chatId, "❌ Jumlah tidak valid. Masukkan angka saja, contoh: 25000");
       return;
     }
-    setState(chatId, { ...state, step: "kategori", jumlah });
-    bot.sendMessage(chatId, "🏷️ Pilih kategori pengeluaran:", {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: "🍔 Makanan", callback_data: "kategori_Makanan" },
-            { text: "🚗 Transport", callback_data: "kategori_Transport" },
-          ],
-          [
-            { text: "🛒 Belanja", callback_data: "kategori_Belanja" },
-            { text: "💊 Kesehatan", callback_data: "kategori_Kesehatan" },
-          ],
-          [
-            { text: "🎮 Hiburan", callback_data: "kategori_Hiburan" },
-            { text: "📦 Lainnya", callback_data: "kategori_Lainnya" },
-          ],
-        ],
-      },
-    });
+    try {
+        const sheet = await getSheet("Pengeluaran");
+        await sheet.addRow({
+          ID: generateId(),
+          Tanggal: today(),
+          Keterangan: state.keterangan,
+          Jumlah: jumlah,
+        });
+        clearState(chatId);
+        bot.sendMessage(
+          chatId,
+          `✅ *Pengeluaran berhasil dicatat!*\n\n` +
+            `📌 *${state.keterangan}*\n` +
+            `💰 ${formatRupiah(jumlah)}\n` +
+            `📅 ${today()}`,
+          { parse_mode: "Markdown" }
+        );
+      } catch (e) {
+        clearState(chatId);
+        bot.sendMessage(chatId, "❌ Gagal menyimpan: " + e.message);
+      }
   }
 });
 
