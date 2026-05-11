@@ -6,11 +6,11 @@ const axios = require("axios");
 const stream = require("stream");
 
 // ── Config ──────────────────────────────────────────────────────────────────
-const BOT_TOKEN = process.env.7915064433:AAHh9dNRVw43VETh8Ee8hFAvpnmZAsCgaWE;
-const SHEET_ID = process.env.1uL2JOeJ8OLNIzlx_UooNpFoDjgyzp1wJEE8ikSlWEKg;
-const DRIVE_FOLDER_ID = process.env.1YUHFayud5QnG0t1AJpD3g9W-pCp1XsSE;
-const SERVICE_ACCOUNT_EMAIL = process.env.hotdkebayoran@bot-aktivitas-hotd.iam.gserviceaccount.com;
-const PRIVATE_KEY = process.env.-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDGNk8dZOSguLP9\ny2udhViKLqZt69aTbD6r2gdITq5b1fO7Z2twzmXukWWxfmTi48Iv1gJj2doXbIOM\nZ7mxo4KN7caT7XbmV3CL7DbcXpj/vzUY+hUwmAXOF0Ho8wBdHJbQ5f5yAE++Q30x\nc3o/qDJ6GoAyWsfcpSD3piAmZmmbZWrHPbJq54scBofm0PaS5cyE8ob+DlaWgUda\nsGMRpZ5Xz0wcXrx/fwBNJUxw04HUkDKpeg5Q/SrjzYgSwjvwNM4NDAvsmv6Ilo25\n7Yo/rHvj4o/QS86e3EG5MKLFm1lOEf0Qn325rgUjM1bTTzlvYZNLSp+d6xdMJSEg\nLxQRvB4lAgMBAAECggEAA9DqW4TEgRKlRnra3szBLGHjCuU6O5rfJwRa1QnMwhBf\nsak3UJPssvfiJxVpoFOlurGKWL1KPV61tqeNk+2ztwNPqivteNhQnqUE1l/M3smh\n3lH8Q/P9Up8wgelhxakl/y4aZLv8TQu0FpZkUWLt29t0QePtCqK0PIhagJrCqD72\nJkONkMU68bbAOvW/THucmUtUEdvNk3I+5k5GO9L73Ex8+1Vbd0osD1x6g3ip5ljm\n6kXigVpfiiHYoVvgGA341xq7YfuS069ybpSDuf0Lr+XgTr9aAm2zEUCSoIn7xR8v\nU4MOOf4wulXIJyngqksg5tJ1ubms/z7dun9zKCR7kQKBgQD23H5IsHuJtZDfoorA\na/zom9KXI/H2+3e3NW0EarkUpos7iZzKf+EhmibwifavxccFJiTo3fXoSbPnwUMd\nXCzKePucSDLWUMxtE9xYAahMvuNBNRNpXsYI+OIt43Eatyx5dSAdsHcI4V3w2tmQ\ngyojd8rMCrz7vBIDANOsn4AWsQKBgQDNjMRrIjE5dfD6ClpYzMryb8JHXL+3J2y1\nHMHQjm5nCri4zr69XmPsfTgbflY6MLWLnqmLQNZIiRSNJ3Ik1NeYO4mdzrgIt450\nCDo4RxdfZMtTJXWd8+isTvZf9nuKtB9MYXGHsRMhR6ovQFQDrrstFZ6oEUxLKDio\neOXl1GgDtQKBgQDCGMHuU1z+/NSJEds4ym+TURl2ntucD0KkuYwbAfK+CujEikHO\nclfIPNVLIZ7lu4LtSH2S3xp/Zpvep/UmO5g4JoHm8lmOav8g8JG6XKtAlIJIffvi\nSJM68L2dyQvgLo/4e6Ah1+LwB4r+WoTf/FGAi6rXXcYTxF8BH4BPZSWoMQKBgFpO\nYylSb1/4YjPogoMLDoru8OMba5tTNd5oUPqI6RZaTofbRU+7fZkz9oeVvNp59fju\nbzyf8sURfLb7QpnN7R6T4cU0QgSKaIqv5qw9B5bAmNfh2EfaFjpFwtasWuC4fBu5\noABmmqn/a1SxJXgst016dycN2oAWnrXdz9tms4AVAoGAWx7ZnqCTB7AK5Gh08iZA\njCbIASIfJbLkm/lpQCRbfDwolOFkugDBa/IxS/wdFl3hL/NsKtwTFLmQHKfZNx1r\ndQ6jhCvB2zXZAg9xUAUV2asrx3BO4gPv2JGRx4tVCh19kgs1/NjbTaTY4XmrZSys\nspQvxAE6vGRxE1CtcN4ru68=\n-----END PRIVATE KEY-----\n.replace(/\\n/g, "\n");
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const SHEET_ID = process.env.GOOGLE_SHEET_ID;
+const DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
+const SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+const PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n");
 
 if (!BOT_TOKEN || !SHEET_ID || !DRIVE_FOLDER_ID || !SERVICE_ACCOUNT_EMAIL || !PRIVATE_KEY) {
   console.error("❌ Environment variables belum lengkap! Cek README.md");
