@@ -17,18 +17,22 @@ if (!BOT_TOKEN || !SHEET_ID || !DRIVE_FOLDER_ID || !SERVICE_ACCOUNT_EMAIL || !PR
   process.exit(1);
 }
 
-// ── Google Auth (Sheets + Drive) ─────────────────────────────────────────────
+// ── Google Auth untuk Sheets ─────────────────────────────────────────────────
 const serviceAccountAuth = new JWT({
   email: SERVICE_ACCOUNT_EMAIL,
   key: PRIVATE_KEY,
-  scopes: [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive",
-  ],
+  scopes: ["https://www.googleapis.com/auth/spreadsheets"],
 });
 
-// ── Google Drive ──────────────────────────────────────────────────────────────
-const drive = google.drive({ version: "v3", auth: serviceAccountAuth });
+// ── Google Auth untuk Drive ───────────────────────────────────────────────────
+const driveAuth = new google.auth.GoogleAuth({
+  credentials: {
+    client_email: SERVICE_ACCOUNT_EMAIL,
+    private_key: PRIVATE_KEY,
+  },
+  scopes: ["https://www.googleapis.com/auth/drive"],
+});
+const drive = google.drive({ version: "v3", auth: driveAuth });
 
 async function uploadToDrive(fileBuffer, fileName, mimeType) {
   const bufferStream = new stream.PassThrough();
