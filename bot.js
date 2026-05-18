@@ -173,20 +173,20 @@ bot.on("callback_query", async (query) => {
       const pending = rows.filter((r) => r.get("Status") === "Pending");
       const done = rows.filter((r) => r.get("Status") === "Selesai");
 
-      let text = "📋 *Daftar Task:*\n\n";
+      let text = "📋 Daftar Task:\n\n";
       if (pending.length > 0) {
-        text += "⏳ *Belum Selesai:*\n";
+        text += "⏳ Belum Selesai:\n";
         pending.forEach((r) => {
-          text += `• \`${r.get("ID")}\` — ${r.get("Task")}\n`;
+          text += `• [${r.get("ID")}] ${r.get("Task")}\n`;
         });
       }
       if (done.length > 0) {
-        text += "\n✅ *Selesai:*\n";
+        text += "\n✅ Selesai:\n";
         done.forEach((r) => {
-          text += `• ~~${r.get("Task")}~~\n`;
+          text += `• ${r.get("Task")}\n`;
         });
       }
-      bot.sendMessage(chatId, text, { parse_mode: "Markdown" });
+      bot.sendMessage(chatId, text);
     } catch (e) {
       bot.sendMessage(chatId, "❌ Gagal mengambil data: " + e.message);
     }
