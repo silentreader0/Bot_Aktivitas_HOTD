@@ -159,7 +159,7 @@ bot.on("callback_query", async (query) => {
   // ── TODO: Tambah ──
   if (data === "todo_tambah") {
     setState(chatId, { action: "todo_tambah" });
-    bot.sendMessage(chatId, "✏️ Ketik nama task yang ingin ditambahkan:");
+    bot.sendMessage(chatId, "✏️ Ketik task yang ingin ditambahkan.\n\nUntuk beberapa task sekaligus, pisahkan dengan baris baru:");
 
   // ── TODO: Lihat ──
   } else if (data === "todo_lihat") {
@@ -173,20 +173,27 @@ bot.on("callback_query", async (query) => {
       const pending = rows.filter((r) => r.get("Status") === "Pending");
       const done = rows.filter((r) => r.get("Status") === "Selesai");
 
-      let text = "📋 Daftar Task:\n\n";
+      // Pesan 1: Pending
+      let pendingText = `⏳ BELUM SELESAI (${pending.length})\n─────────────────\n`;
       if (pending.length > 0) {
-        text += "⏳ Belum Selesai:\n";
-        pending.forEach((r) => {
-          text += `• [${r.get("ID")}] ${r.get("Task")}\n`;
+        pending.forEach((r, i) => {
+          pendingText += `\n${i + 1}. ${r.get("Task")}\n   ID: ${r.get("ID")}\n`;
         });
+      } else {
+        pendingText += "\nSemua task sudah selesai! 🎉";
       }
+      await bot.sendMessage(chatId, pendingText);
+
+      // Pesan 2: Selesai
       if (done.length > 0) {
-        text += "\n✅ Selesai:\n";
+        let doneText = `✅ SELESAI (${done.length})\n─────────────────\n`;
         done.forEach((r) => {
-          text += `• ${r.get("Task")}\n`;
+          doneText += `\n• ${r.get("Task")}`;
+          if (r.get("Tanggal Selesai")) doneText += `\n  ${r.get("Tanggal Selesai")}`;
+          doneText += "\n";
         });
+        await bot.sendMessage(chatId, doneText);
       }
-      bot.sendMessage(chatId, text);
     } catch (e) {
       bot.sendMessage(chatId, "❌ Gagal mengambil data: " + e.message);
     }
@@ -205,8 +212,7 @@ bot.on("callback_query", async (query) => {
     setState(chatId, { action: "todo_hapus" });
     bot.sendMessage(
       chatId,
-      "🗑️ Ketik *ID task* yang ingin dihapus.\n_(Lihat ID dengan /todolist → Lihat Daftar Task)_",
-      { parse_mode: "Markdown" }
+      "🗑️ Ketik ID task yang ingin dihapus.\nUntuk hapus beberapa sekaligus, pisahkan dengan baris baru:\n\nContoh:\nABC123\nDEF456"
     );
 
   // ── BAYAR: Catat ──
@@ -229,23 +235,21 @@ bot.on("message", async (msg) => {
   const state = getState(chatId);
   if (!state) return;
 
-  // ── Todo: Tambah Task ──
+  // ── Todo: Tambah Task (bulk) ──
   if (state.action === "todo_tambah") {
     try {
       const sheet = await getSheet("TodoList");
-      const id = generateId();
-      await sheet.addRow({
-        ID: id,
-        Task: text,
-        Status: "Pending",
-        "Tanggal Dibuat": today(),
-      });
+      const tasks = text.split("\n").map(t => t.trim()).filter(t => t.length > 0);
+      const added = [];
+      for (const task of tasks) {
+        const id = generateId();
+        await sheet.addRow({ ID: id, Task: task, Status: "Pending", "Tanggal Dibuat": today() });
+        added.push({ id, task });
+      }
       clearState(chatId);
-      bot.sendMessage(
-        chatId,
-        `✅ Task berhasil ditambahkan!\n\n📌 *${text}*\n🆔 ID: \`${id}\``,
-        { parse_mode: "Markdown" }
-      );
+      let reply = `✅ ${added.length} task berhasil ditambahkan!\n\n`;
+      added.forEach((t) => { reply += `• ${t.task}  [${t.id}]\n`; });
+      bot.sendMessage(chatId, reply);
     } catch (e) {
       clearState(chatId);
       bot.sendMessage(chatId, "❌ Gagal menyimpan: " + e.message);
@@ -275,24 +279,30 @@ bot.on("message", async (msg) => {
       bot.sendMessage(chatId, "❌ Gagal update: " + e.message);
     }
 
-  // ── Todo: Hapus ──
+  // ── Todo: Hapus (bulk) ──
   } else if (state.action === "todo_hapus") {
     try {
       const sheet = await getSheet("TodoList");
       const rows = await sheet.getRows();
-      const row = rows.find((r) => r.get("ID") === text.trim().toUpperCase());
-      if (!row) {
-        bot.sendMessage(chatId, `❌ Task dengan ID \`${text}\` tidak ditemukan.`, {
-          parse_mode: "Markdown",
-        });
-        return;
+      const ids = text.split("\n").map(t => t.trim().toUpperCase()).filter(t => t.length > 0);
+      const deleted = [];
+      const notFound = [];
+      for (const id of ids) {
+        const row = rows.find((r) => r.get("ID") === id);
+        if (!row) { notFound.push(id); continue; }
+        deleted.push(row.get("Task"));
+        await row.delete();
       }
-      const taskName = row.get("Task");
-      await row.delete();
       clearState(chatId);
-      bot.sendMessage(chatId, `🗑️ Task *${taskName}* berhasil dihapus!`, {
-        parse_mode: "Markdown",
-      });
+      let reply = "";
+      if (deleted.length > 0) {
+        reply += `🗑️ ${deleted.length} task dihapus:\n`;
+        deleted.forEach(t => { reply += `• ${t}\n`; });
+      }
+      if (notFound.length > 0) {
+        reply += `\n❌ ID tidak ditemukan: ${notFound.join(", ")}`;
+      }
+      bot.sendMessage(chatId, reply);
     } catch (e) {
       clearState(chatId);
       bot.sendMessage(chatId, "❌ Gagal menghapus: " + e.message);
